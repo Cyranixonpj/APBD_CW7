@@ -33,13 +33,21 @@ public class WareHouseRepository : IWarehouseRepository
                 sqlConnection, transact);
             if (orderId==null||!await CheckOrderCreationDate(orderId.Value,wareHouseDto.CreatedAt,sqlConnection,transact))
             {
-                
+                return 0;
             }
+
+            if (!await CheckIfCompletedOrder(orderId.Value,sqlConnection,transact))
+            {
+                UpdateOrderFullfilledAt(orderId.Value,sqlConnection,transact);
+                return await InsertIntoDb(wareHouseDto, orderId, sqlConnection, transact);
+            }
+
+            return 0;
 
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            await transact.RollbackAsync();
             throw;
         }
     }
@@ -47,12 +55,8 @@ public class WareHouseRepository : IWarehouseRepository
 
     public async Task<bool> DoesProductWithIDExist(int id,SqlConnection sqlConnection,SqlTransaction transaction)
     {
-        var command = new SqlCommand();
-        command.CommandText = """
-                              SELECT COUNT(*) FROM Product WHERE IdProduct = @Id;
-                              """;
-        command.Transaction = (SqlTransaction)transaction;
-        command.Parameters.AddWithValue("Id", id);
+        var command = new SqlCommand("SELECT COUNT(*)FROM Warehouse WHERE IdWarehouse=@Id", sqlConnection, transaction);
+        command.Parameters.AddWithValue("@Id", id);
         var res = (int)await command.ExecuteScalarAsync();
         return res > 0;
     }
